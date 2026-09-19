@@ -129,10 +129,9 @@ Then go to your phone Bluetooth menu and unpair the camera there as well.
 Finally unpair the phone from the camera on the camera Bluetooth menu.
 
 ### After phone restart
-Due to the way location permissions work on Android the app is not 
-able to start working after the phone is restarted without it being opened by the user.
-Therefor, after a restart the app will display a notification reminding you
-to open it, which will disappear once you do.
+The app re-registers its companion-device observation and power-aware BLE trigger
+after a restart. It does not start location or a foreground service until an
+associated camera is detected as powered on.
 
 
 ## Privacy
@@ -142,10 +141,9 @@ The app doesn't connect to the Internet.
 
 ## Permissions
 The app requires the following permission:  
-**Precise Location** - Must be set to "When using the app" - required for providing location information to the camera    
+**Precise Location** - Must be set to "Allow all the time" so a camera can request GPS after waking the app. Location updates run only while a camera session is active.
 **Nearby Devices** - Required for using bluetooth to connect to the camera    
-**Notifications** - Required for showing a persistent notification while the
-app is running in the background, waiting to connect with the camera
+**Notifications** - Used for the foreground-service notification only while connecting or connected
 
 ## Troubleshooting and FAQ
 * **I'm getting a "Pairing Error" message in the app**
@@ -161,10 +159,9 @@ app is running in the background, waiting to connect with the camera
   5. Confirm the pairing request on both the camera and the phone.
 
 * **The camera doesn't receive the location information while the phone is locked**  
-  The app is being restricted by Android's "battery optimization" feature. Go to the
-  Android system settings > Apps > search for Camera GPS Link > Battery > Set to "Unrestricted" 
-  If you had to do this please let me know. If I see this is a common issue I'll add 
-  a friendlier way of opening that setting page.
+  Verify that Location is set to "Allow all the time" and that the app has not been
+  placed in Samsung's Deep sleeping apps list. Normal/Optimized battery mode is the
+  supported default; "Unrestricted" should only be a troubleshooting fallback.
 
 * **The camera doesn't receive the location information at all**  
   On cameras that work with Imaging Edge Mobile location linking has to be enabled
@@ -178,18 +175,13 @@ app is running in the background, waiting to connect with the camera
   the app to detect that it has been enabled.
 
 * **The camera only connects to the app when it is running in the foreground**  
-  The app has a background process that is searching for paired cameras all the time,
-  even when the app is not active in the foreground. That process is displaying a 
-  notification in Android notification center saying "Searching for cameras...", if 
-  you dismiss this notification (swipe it out), Android will kill the background process
-  and the app won't work until you open the app again.
+  Remove and associate the camera again with the "+" button, then verify Nearby Devices
+  and background Location permissions. Android owns the dormant BLE trigger; there is
+  no permanent "Searching for cameras" service to keep alive.
 
 * **Once in a while I get a notification to open the app in the phone's notification center**  
-  This is a requirement of Android. Background processes that access the GPS location
-  can't start automatically after a phone restart or after the app has been upgraded
-  from the Play Store, a user interaction is required for it to start. 
-  Just tap the notification, it will open the app which will allow the background service
-  to work and start searching for cameras.
+  Reboot and app updates are rearmed automatically. An explicit Android Force stop, a
+  revoked permission, or Samsung Deep sleeping apps still requires user interaction.
 
 * **When I enable Bluetooth Remote Control in the camera geotagging stops working**
   This ia limitation of some cameras like the a6400 and the a7 III which do not allow
@@ -202,12 +194,9 @@ app is running in the background, waiting to connect with the camera
   auto focus when you half press the shutter on the camera and not when using the remote.
 
 * **The camera is turning on even when I power it off**
-  You probably have "Cnct. while Power Off" enabled in the camera menu and you've
-  set the connection mode in the app to Mode 2. In that mode the app can't detect 
-  that Connect while power off is enabled in the camera and will cause it to wake up
-  every few seconds. Either disable that feature in the camera, or use Mode 1 in the app.  
-  In general, enabling this feature wastes battery power both on the Camera and the phone
-  so don't enable it unless you actually need it.
+  Camera GPS Link filters Sony's manufacturer-data power bit before connecting, including
+  when "Cnct. while Power Off" is enabled. If a firmware changes the advertisement layout,
+  disable that camera option and include the app's metrics/log when reporting the model.
 
 ### Acknowledgements
 This app is inspired by previous work done by:  
