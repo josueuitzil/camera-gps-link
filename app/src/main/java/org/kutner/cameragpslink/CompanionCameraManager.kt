@@ -84,22 +84,22 @@ class CompanionCameraManager(private val context: Context) {
         AppSettingsManager.updateAssociation(context, address, info.id)
         val request = ObservingDevicePresenceRequest.Builder().setAssociationId(info.id).build()
         val powerAwareScanArmed = SonyPresenceScanner.ensureRegistered(context, address)
-        if (powerAwareScanArmed) {
-            // Sony's power-off beacon counts as "present". Keeping CompanionDeviceService
-            // bound for that beacon would retain our process unnecessarily, so the exact
-            // manufacturer-bit PendingIntent scan is preferred for normal operation.
-            runCatching { manager.stopObservingDevicePresence(request) }
-        } else {
-            runCatching { manager.startObservingDevicePresence(request) }
-                .onFailure { Log.w("CompanionCameraManager", "Presence fallback failed for $address", it) }
-        }
+        val companionPresenceArmed = runCatching { manager.startObservingDevicePresence(request) }
+            .onFailure {
+                // Re-registering an observation is harmless on builds that report it as
+                // already active. Keep the PendingIntent scan armed as an independent path.
+                Log.i("CompanionCameraManager", "Presence observation already active or unavailable for $address", it)
+            }
+            .isSuccess
         ReconnectionMetrics.event(
             context,
             "companion_observation_armed",
             mapOf(
                 "address" to address,
                 "associationId" to info.id,
-                "strategy" to if (powerAwareScanArmed) "power_aware_pending_intent" else "companion_presence_fallback",
+                "strategy" to "hybrid_companion_and_power_scan",
+                "companionPresenceArmed" to companionPresenceArmed,
+                "powerAwareScanArmed" to powerAwareScanArmed,
             ),
         )
     }

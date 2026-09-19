@@ -176,8 +176,10 @@ The app requires the following permission:
 
 * **The camera only connects to the app when it is running in the foreground**  
   Remove and associate the camera again with the "+" button, then verify Nearby Devices
-  and background Location permissions. Android owns the dormant BLE trigger; there is
-  no permanent "Searching for cameras" service to keep alive.
+  and background Location permissions. Android Companion Device Presence owns the normal
+  dormant wake trigger, while a low-power Sony-filtered scan covers cameras configured to
+  advertise while powered off. There is no permanent "Searching for cameras" service to
+  keep alive.
 
 * **Once in a while I get a notification to open the app in the phone's notification center**  
   Reboot and app updates are rearmed automatically. An explicit Android Force stop, a

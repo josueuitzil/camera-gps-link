@@ -15,8 +15,8 @@ import android.util.Log
 
 object SonyPresenceScanner {
     private const val TAG = "SonyPresenceScanner"
-    private const val FILTER_SCHEMA_VERSION = 3
-    private val LEGACY_FILTER_SCHEMA_VERSIONS = listOf<Int?>(null, 1, 2)
+    private const val FILTER_SCHEMA_VERSION = 4
+    private val LEGACY_FILTER_SCHEMA_VERSIONS = listOf<Int?>(null, 1, 2, 3)
 
     private fun pendingIntent(context: Context, address: String, schemaVersion: Int? = FILTER_SCHEMA_VERSION): PendingIntent {
         val intent = Intent(context, SonyPresenceScanReceiver::class.java).apply {
@@ -64,10 +64,10 @@ object SonyPresenceScanner {
             )
             .build()
         val settings = ScanSettings.Builder()
-            // Samsung's LOW_POWER mode was measured at a 5% duty cycle and added
-            // 10-15 seconds before the first wake event. BALANCED keeps detection
-            // event-driven while substantially reducing that dormant latency.
-            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+            // Companion presence is the primary wake path. This power-aware scan is a
+            // low-cost fallback for Sony's "Connect while Power Off" mode, where the
+            // generic companion presence state may never transition.
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH or ScanSettings.CALLBACK_TYPE_MATCH_LOST)
             .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)

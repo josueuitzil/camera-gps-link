@@ -6,17 +6,18 @@ Camera GPS Link now targets Android 16 / API 36 and uses a hybrid system-managed
 architecture:
 
 1. `CompanionDeviceManager` owns user-approved Sony camera associations.
-2. A filtered `BluetoothLeScanner.startScan(..., PendingIntent)` registration is the
-   normal dormant trigger. The filter matches the saved address, Sony manufacturer ID,
-   camera device type, tag `0x21`, and its powered-on bit. It uses `SCAN_MODE_BALANCED`:
-   the Galaxy's measured 5% `LOW_POWER` duty cycle added 10–15 seconds of wake latency.
-3. API 36 companion presence is armed only if the power-aware PendingIntent scan cannot
-   be registered. Observing all Sony presence unconditionally would keep
-   `CompanionDeviceService` bound while **Connect while Power Off** advertises.
-4. The scan receiver starts `CameraSyncService` only for a powered-on match.
+2. API 36 companion presence is the primary dormant trigger. The app declares
+   `REQUEST_COMPANION_RUN_IN_BACKGROUND` so Android can bind and wake the companion
+   component independently of a cached application process.
+3. On a companion appeared event, `CompanionDeviceService` performs a bounded 12-second
+   hardware-filtered confirmation scan. GATT is started only after the Sony powered-on
+   bit is observed, so a power-off beacon cannot start GPS or a foreground service.
+4. A filtered `BluetoothLeScanner.startScan(..., PendingIntent)` registration remains as
+   a `LOW_POWER` fallback. It handles **Connect while Power Off**, where generic presence
+   may remain continuously true and therefore provides no new appeared transition.
 5. The service becomes a `connectedDevice|location` foreground service, opens a direct
    LE GATT connection, starts high-accuracy location, and sends Sony DD11 updates.
-6. Disconnect resets the scan's `FIRST_MATCH` state before tearing down GATT/location/
+6. Disconnect resets the fallback scan's `FIRST_MATCH` state before tearing down GATT/location/
    FGS. This permits a fresh event after a quick off/on cycle instead of waiting for
    Samsung's delayed `MATCH_LOST`. The durable system scan remains registered without
    retaining the app process.
@@ -39,7 +40,8 @@ UNASSOCIATED
     | system association approval
     v
 ASSOCIATED / DORMANT
-    | Sony powered-on PendingIntent match
+    | companion appeared -> bounded Sony power-on confirmation
+    | (or low-power PendingIntent fallback)
     v
 FGS_STARTING -> GATT_CONNECTING -> BONDING -> DISCOVERING
                     | failure          | failure
@@ -64,8 +66,8 @@ has a 25-second timeout and each queued GATT operation has an 8-second timeout.
 - `SonyPresenceScanner` / `SonyPresenceScanReceiver`: process-independent, hardware-
   filterable power-on and match-lost events.
 - `SonyAdvertisement`: protocol parsing and the a6700 power-aware filter definition.
-- `SonyCompanionDeviceService`: API 36 fallback when PendingIntent scan registration
-  fails.
+- `SonyCompanionDeviceService`: primary API 36 presence wake path and short powered-on
+  confirmation scan.
 - `CameraSyncService`: active session only; GATT, bonding, Sony protocol and location.
 - `GattOperationQueue`: one outstanding characteristic/descriptor write per GATT,
   immediate rejection retry, and timeout-based recovery.
@@ -78,7 +80,7 @@ has a 25-second timeout and each queued GATT operation has an 8-second timeout.
 | Situation | Expected behavior |
 |---|---|
 | Camera off | No app service/process requirement and no location updates |
-| Camera powered on | System delivers filtered PendingIntent and starts active FGS |
+| Camera powered on | Companion presence wakes the app; Sony power bit confirms before FGS |
 | App removed from Recents | No effect on registered association/scan |
 | Normal process death while dormant | System scan can create the receiver process |
 | Active-process memory death | `START_REDELIVER_INTENT` recreates the requested session |
@@ -88,8 +90,14 @@ has a 25-second timeout and each queued GATT operation has an 8-second timeout.
 | Samsung Deep sleeping apps | Unsupported by design; One UI prevents background activation |
 
 Normal Samsung Optimized/Adaptive Battery is the target configuration. Companion
-association plus background-FGS permission removes the generic reason to request
-`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; that permission and onboarding step were removed.
+association plus `REQUEST_COMPANION_RUN_IN_BACKGROUND` is the official Android exemption
+for an associated-device integration and replaces the generic request for unrestricted
+battery. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` and its onboarding step remain removed.
+
+Galaxy field logs showed that One UI froze a correctly registered PendingIntent scan for
+minutes while the app process was cached. The scan received no results across three camera
+power cycles and resumed after opening the app. This is why companion presence is primary;
+increasing scan duty cycle cannot repair a scan that the OEM has frozen.
 
 ## Location and notifications
 
@@ -119,6 +127,12 @@ If a firmware reorders tags, the strict PendingIntent filter will not fire. The 
 fallback is to disable **Connect while Power Off** while adding a model-specific observed
 layout; broad `ALL_MATCHES` scanning was intentionally avoided because it would wake the
 app for every power-off advertisement.
+
+With **Connect while Power Off** enabled, generic companion presence may keep
+`CompanionDeviceService` bound while the camera is nominally off. The app performs no GPS
+or GATT work after the confirmation timeout, but the bound process can cost more memory and
+battery than the normal fully dormant state. The low-power manufacturer-filtered scan is
+still required to detect the later off-to-on transition.
 
 Neither companion association nor device presence creates a GATT connection or speaks
 the proprietary Sony protocol. Bonding and DD30/DD31/CC13/DD11 remain app-owned.
