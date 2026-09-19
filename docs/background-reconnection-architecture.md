@@ -99,9 +99,11 @@ The notification now means real work: connecting or connected. The indefinite
 
 ## Sony assumptions and limitations
 
-Sony manufacturer data is interpreted as three-byte tags beginning at offset 6. The
-power-aware hardware filter assumes `0x21` is the first tag and masks bit `0x0040`. The
-parser itself can find later tags, but Android manufacturer filters match fixed offsets.
+Sony manufacturer data is interpreted as three-byte tags beginning at offset 6. A physical
+a6700 running protocol version 101 was observed advertising tags `0x22`, `0x23`, then
+`0x21`, placing the power tag at offset 12. The power-aware hardware filter therefore
+matches `0x21` at offset 12 and masks bit `0x0040`. The parser itself continues to walk all
+tags because their contents can vary, but Android manufacturer filters match fixed offsets.
 Unit tests cover the documented layout; a Sony a6700 must verify it with **Connect while
 Power Off** both enabled and disabled.
 

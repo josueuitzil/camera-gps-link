@@ -4,6 +4,9 @@ package org.kutner.cameragpslink
 object SonyAdvertisement {
     private const val FIRST_TAG_OFFSET = 6
     private const val TAG_SIZE = 3
+    // Observed on a production a6700 advertisement. Tags before 0x21 can vary,
+    // which is why the software parser above still walks all three-byte tags.
+    private const val A6700_POWER_TAG_OFFSET = 12
     private const val POWER_TAG = 0x21
     private const val POWERED_ON_MASK = 0x0040
     private const val REMOTE_CONTROL_TAG = 0x22
@@ -40,16 +43,21 @@ object SonyAdvertisement {
     }
 
     /**
-     * Manufacturer filter for the known a6700/Creators' App advertisement layout.
+     * Manufacturer filter for the observed a6700/Creators' App advertisement layout.
      * Zero mask bytes are wildcards. Matching the power bit prevents the system
      * PendingIntent scan from waking the app for the camera's power-off beacon.
      */
-    val poweredOnFilterData = byteArrayOf(
-        0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x40, 0x00,
-    )
+    val poweredOnFilterData = ByteArray(A6700_POWER_TAG_OFFSET + TAG_SIZE).apply {
+        this[0] = 0x03
+        this[1] = 0x00
+        this[A6700_POWER_TAG_OFFSET] = POWER_TAG.toByte()
+        this[A6700_POWER_TAG_OFFSET + 1] = POWERED_ON_MASK.toByte()
+    }
 
-    val poweredOnFilterMask = byteArrayOf(
-        0xff.toByte(), 0xff.toByte(), 0x00, 0x00, 0x00, 0x00,
-        0xff.toByte(), 0x40, 0x00,
-    )
+    val poweredOnFilterMask = ByteArray(A6700_POWER_TAG_OFFSET + TAG_SIZE).apply {
+        this[0] = 0xff.toByte()
+        this[1] = 0xff.toByte()
+        this[A6700_POWER_TAG_OFFSET] = 0xff.toByte()
+        this[A6700_POWER_TAG_OFFSET + 1] = POWERED_ON_MASK.toByte()
+    }
 }

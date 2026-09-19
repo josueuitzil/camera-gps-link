@@ -11,9 +11,11 @@ class SonyAdvertisementTest {
     @Test
     fun parsesPoweredOnA6700Layout() {
         val data = byteArrayOf(
-            0x03, 0x00, 0x65, 0x45, 0x31, 0x00,
-            0x21, 0x40, 0x00,
-            0x22, 0x04, 0x00,
+            0x03, 0x00, 0x65, 0x00, 0x55, 0x31,
+            0x22, 0xbb.toByte(), 0xc0.toByte(),
+            0x23, 0xb7.toByte(), 0xac.toByte(),
+            0x21, 0x60, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00,
         )
 
         val state = SonyAdvertisement.parse(data)
@@ -21,16 +23,17 @@ class SonyAdvertisementTest {
         assertNotNull(state)
         assertEquals(0x65, state?.protocolVersion)
         assertTrue(state?.isPoweredOn == true)
-        assertTrue(state?.isRemoteControlEnabled == true)
+        assertFalse(state?.isRemoteControlEnabled ?: true)
         assertTrue(matchesHardwarePowerFilter(data))
     }
 
     @Test
     fun powerOffBeaconDoesNotMatchWakeFilter() {
         val data = byteArrayOf(
-            0x03, 0x00, 0x65, 0x45, 0x31, 0x00,
-            0x21, 0x80.toByte(), 0x00,
-            0x22, 0x04, 0x00,
+            0x03, 0x00, 0x65, 0x00, 0x55, 0x31,
+            0x22, 0xbb.toByte(), 0xc0.toByte(),
+            0x23, 0xb7.toByte(), 0xac.toByte(),
+            0x21, 0x20, 0x00,
         )
 
         val state = SonyAdvertisement.parse(data)

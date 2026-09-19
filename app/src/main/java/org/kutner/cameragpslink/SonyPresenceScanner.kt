@@ -15,10 +15,12 @@ import android.util.Log
 
 object SonyPresenceScanner {
     private const val TAG = "SonyPresenceScanner"
+    private const val FILTER_SCHEMA_VERSION = 2
 
-    private fun pendingIntent(context: Context, address: String): PendingIntent {
+    private fun pendingIntent(context: Context, address: String, schemaVersion: Int? = FILTER_SCHEMA_VERSION): PendingIntent {
         val intent = Intent(context, SonyPresenceScanReceiver::class.java).apply {
-            data = Uri.parse("cameragpslink://sony-presence/${address.replace(':', '-')}")
+            val versionPath = schemaVersion?.let { "/v$it" }.orEmpty()
+            data = Uri.parse("cameragpslink://sony-presence$versionPath/${address.replace(':', '-')}")
             putExtra(Constants.EXTRA_DEVICE_ADDRESS, address)
         }
         return PendingIntent.getBroadcast(
@@ -59,8 +61,12 @@ object SonyPresenceScanner {
             .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)
             .build()
         val result = runCatching {
-            scanner(context)?.startScan(listOf(filter), settings, pendingIntent(context, canonicalAddress))
-                ?: ScanCallback.SCAN_FAILED_INTERNAL_ERROR
+            val bluetoothScanner = scanner(context) ?: return@runCatching ScanCallback.SCAN_FAILED_INTERNAL_ERROR
+            val scanIntent = pendingIntent(context, canonicalAddress)
+            // A PendingIntent registration keeps its original filter. Retire the
+            // unversioned schema once, while leaving an existing current scan intact.
+            bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion = null))
+            bluetoothScanner.startScan(listOf(filter), settings, scanIntent)
         }.getOrElse {
             Log.w(TAG, "Unable to register scan for $canonicalAddress", it)
             ScanCallback.SCAN_FAILED_INTERNAL_ERROR
@@ -73,7 +79,12 @@ object SonyPresenceScanner {
     @SuppressLint("MissingPermission")
     fun stop(context: Context, address: String) {
         val canonicalAddress = BluetoothAddress.normalize(address) ?: return
-        runCatching { scanner(context)?.stopScan(pendingIntent(context, canonicalAddress)) }
+        runCatching {
+            scanner(context)?.let { bluetoothScanner ->
+                bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion = null))
+                bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress))
+            }
+        }
         ReconnectionMetrics.markPendingScanStopped(context, canonicalAddress)
     }
 }
