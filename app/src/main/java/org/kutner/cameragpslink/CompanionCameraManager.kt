@@ -16,8 +16,11 @@ class CompanionCameraManager(private val context: Context) {
 
     fun associations(): List<AssociationInfo> = manager.myAssociations
 
-    fun associationFor(address: String): AssociationInfo? = associations().firstOrNull {
-        it.deviceMacAddress?.toString().equals(address, ignoreCase = true)
+    fun associationFor(address: String): AssociationInfo? {
+        val canonicalAddress = BluetoothAddress.normalize(address) ?: return null
+        return associations().firstOrNull {
+            BluetoothAddress.normalize(it.deviceMacAddress?.toString()) == canonicalAddress
+        }
     }
 
     fun missingAssociations(): List<String> = AppSettingsManager.getSavedCameras(context).filter {
@@ -30,18 +33,23 @@ class CompanionCameraManager(private val context: Context) {
         onCreated: (AssociationInfo) -> Unit,
         onFailure: (CharSequence?) -> Unit,
     ) {
+        val canonicalAddress = address?.let(BluetoothAddress::normalize)
+        if (address != null && canonicalAddress == null) {
+            onFailure("Invalid Bluetooth address")
+            return
+        }
         val scanFilter = ScanFilter.Builder()
             .setManufacturerData(
                 Constants.SONY_MANUFACTURER_ID,
                 Constants.SONY_DEVICE_TYPE_CAMERA,
                 byteArrayOf(0xff.toByte(), 0xff.toByte()),
             )
-            .apply { address?.let(::setDeviceAddress) }
+            .apply { canonicalAddress?.let(::setDeviceAddress) }
             .build()
         val deviceFilter = BluetoothLeDeviceFilter.Builder().setScanFilter(scanFilter).build()
         val request = AssociationRequest.Builder()
             .addDeviceFilter(deviceFilter)
-            .setSingleDevice(address != null)
+            .setSingleDevice(canonicalAddress != null)
             .build()
 
         manager.associate(request, context.mainExecutor, object : CompanionDeviceManager.Callback() {
@@ -64,7 +72,12 @@ class CompanionCameraManager(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     private fun register(info: AssociationInfo) {
-        val address = info.deviceMacAddress?.toString() ?: return
+        val rawAddress = info.deviceMacAddress?.toString() ?: return
+        val address = BluetoothAddress.normalize(rawAddress)
+        if (address == null) {
+            Log.w("CompanionCameraManager", "Ignoring association ${info.id} with invalid address: $rawAddress")
+            return
+        }
         if (!AppSettingsManager.hasSavedCamera(context, address)) {
             AppSettingsManager.addSavedCamera(context, address, Constants.PROTOCOL_VERSION_CREATORS_APP)
         }
@@ -92,10 +105,11 @@ class CompanionCameraManager(private val context: Context) {
     }
 
     fun removeAssociation(address: String) {
-        val info = associationFor(address) ?: return
+        val canonicalAddress = BluetoothAddress.normalize(address) ?: return
+        val info = associationFor(canonicalAddress) ?: return
         val request = ObservingDevicePresenceRequest.Builder().setAssociationId(info.id).build()
         runCatching { manager.stopObservingDevicePresence(request) }
-        SonyPresenceScanner.stop(context, address)
+        SonyPresenceScanner.stop(context, canonicalAddress)
         manager.disassociate(info.id)
     }
 }

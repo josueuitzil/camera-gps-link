@@ -77,15 +77,16 @@ class CameraSyncService : Service() {
         @Volatile private var currentInstance: CameraSyncService? = null
 
         fun startForCamera(context: Context, address: String) {
+            val canonicalAddress = BluetoothAddress.normalize(address) ?: return
             val intent = Intent(context, CameraSyncService::class.java).apply {
                 action = Constants.ACTION_CONNECT_ASSOCIATED_CAMERA
-                putExtra(Constants.EXTRA_DEVICE_ADDRESS, address)
+                putExtra(Constants.EXTRA_DEVICE_ADDRESS, canonicalAddress)
             }
             ContextCompat.startForegroundService(context, intent)
         }
 
         fun notifyCameraAbsent(address: String) {
-            currentInstance?.handleCameraAbsent(address)
+            BluetoothAddress.normalize(address)?.let { currentInstance?.handleCameraAbsent(it) }
         }
     }
 
@@ -239,7 +240,9 @@ class CameraSyncService : Service() {
         }
 
         if (intent?.action == Constants.ACTION_CONNECT_ASSOCIATED_CAMERA) {
-            val address = intent.getStringExtra(Constants.EXTRA_DEVICE_ADDRESS)
+            val address = BluetoothAddress.normalize(
+                intent.getStringExtra(Constants.EXTRA_DEVICE_ADDRESS),
+            )
             if (address == null) {
                 stopSelfResult(startId)
                 return START_NOT_STICKY

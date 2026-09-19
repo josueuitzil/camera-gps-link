@@ -49,8 +49,11 @@ object AppSettingsManager {
     private fun saveCameraSettings(context: Context, settings: CameraSettings) {
         ensureCacheLoaded(context)
 
+        val canonicalAddress = BluetoothAddress.normalize(settings.deviceAddress) ?: return
+        val canonicalSettings = settings.copy(deviceAddress = canonicalAddress)
+
         // Update or add to cache
-        cameraSettingsCache!![settings.deviceAddress] = settings
+        cameraSettingsCache!![canonicalAddress] = canonicalSettings
 
         // Persist to storage
         persistCache(context)
@@ -59,8 +62,10 @@ object AppSettingsManager {
     fun getCameraSettings(context: Context, deviceAddress: String): CameraSettings {
         ensureCacheLoaded(context)
 
-        val settings = cameraSettingsCache!![deviceAddress]
-            ?: CameraSettings(deviceAddress = deviceAddress)
+        val canonicalAddress = BluetoothAddress.normalize(deviceAddress) ?: deviceAddress
+
+        val settings = cameraSettingsCache!![canonicalAddress]
+            ?: CameraSettings(deviceAddress = canonicalAddress)
 
         return settings.copy(
             associationId = settings.associationId,
@@ -92,8 +97,9 @@ object AppSettingsManager {
 
         // Add cameras in the new order
         orderedAddresses.forEach { address ->
-            oldCache[address]?.let { settings ->
-                newCache[address] = settings
+            val canonicalAddress = BluetoothAddress.normalize(address) ?: return@forEach
+            oldCache[canonicalAddress]?.let { settings ->
+                newCache[canonicalAddress] = settings
             }
         }
 
@@ -123,7 +129,9 @@ object AppSettingsManager {
     fun removeSettings(context: Context, deviceAddress: String) {
         ensureCacheLoaded(context)
 
-        if (cameraSettingsCache!!.remove(deviceAddress) != null) {
+        val canonicalAddress = BluetoothAddress.normalize(deviceAddress) ?: return
+
+        if (cameraSettingsCache!!.remove(canonicalAddress) != null) {
             persistCache(context)
         }
     }
@@ -138,8 +146,18 @@ object AppSettingsManager {
             if (list != null) {
                 // Convert list to LinkedHashMap, preserving order from the list
                 val map = LinkedHashMap<String, CameraSettings>()
+                var migrated = false
                 list.forEach { settings ->
-                    map[settings.deviceAddress] = settings
+                    val canonicalAddress = BluetoothAddress.normalize(settings.deviceAddress)
+                    if (canonicalAddress == null) {
+                        migrated = true
+                        return@forEach
+                    }
+                    migrated = migrated || canonicalAddress != settings.deviceAddress || map.containsKey(canonicalAddress)
+                    map[canonicalAddress] = settings.copy(deviceAddress = canonicalAddress)
+                }
+                if (migrated) {
+                    prefs.edit().putString(CAMERA_SETTINGS_KEY, gson.toJson(map.values.toList())).apply()
                 }
 
                 return map
@@ -155,11 +173,16 @@ object AppSettingsManager {
 
             if (oldMap != null) {
                 // Migrate to new format by persisting as list
-                val settingsList = oldMap.values.toList()
+                val canonicalMap = LinkedHashMap<String, CameraSettings>()
+                oldMap.values.forEach { settings ->
+                    val canonicalAddress = BluetoothAddress.normalize(settings.deviceAddress) ?: return@forEach
+                    canonicalMap[canonicalAddress] = settings.copy(deviceAddress = canonicalAddress)
+                }
+                val settingsList = canonicalMap.values.toList()
                 val newJson = gson.toJson(settingsList)
                 prefs.edit().putString(CAMERA_SETTINGS_KEY, newJson).apply()
 
-                return oldMap
+                return canonicalMap
             }
         } catch (e: Exception) {
             // Parsing failed
@@ -176,8 +199,9 @@ object AppSettingsManager {
     }
 
     fun addSavedCamera(context: Context, deviceAddress: String, protocolVersion: Int) {
+        val canonicalAddress = BluetoothAddress.normalize(deviceAddress) ?: return
         val newSettings = CameraSettings(
-            deviceAddress = deviceAddress,
+            deviceAddress = canonicalAddress,
             protocolVersion = protocolVersion
         )
         saveCameraSettings(context, newSettings)
@@ -189,7 +213,8 @@ object AppSettingsManager {
 
     fun hasSavedCamera(context: Context, deviceAddress: String): Boolean {
         ensureCacheLoaded(context)
-        return cameraSettingsCache!!.containsKey(deviceAddress)
+        val canonicalAddress = BluetoothAddress.normalize(deviceAddress) ?: return false
+        return cameraSettingsCache!!.containsKey(canonicalAddress)
     }
 
     // --- UI Preferences ---

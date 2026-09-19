@@ -34,8 +34,18 @@ object SonyPresenceScanner {
 
     @SuppressLint("MissingPermission")
     fun ensureRegistered(context: Context, address: String): Boolean {
+        val canonicalAddress = BluetoothAddress.normalize(address)
+        if (canonicalAddress == null) {
+            Log.w(TAG, "Refusing to register scan for invalid Bluetooth address: $address")
+            ReconnectionMetrics.event(
+                context,
+                "pending_intent_scan_invalid_address",
+                mapOf("address" to address),
+            )
+            return false
+        }
         val filter = ScanFilter.Builder()
-            .setDeviceAddress(address)
+            .setDeviceAddress(canonicalAddress)
             .setManufacturerData(
                 Constants.SONY_MANUFACTURER_ID,
                 SonyAdvertisement.poweredOnFilterData,
@@ -49,27 +59,30 @@ object SonyPresenceScanner {
             .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)
             .build()
         val result = runCatching {
-            scanner(context)?.startScan(listOf(filter), settings, pendingIntent(context, address))
+            scanner(context)?.startScan(listOf(filter), settings, pendingIntent(context, canonicalAddress))
                 ?: ScanCallback.SCAN_FAILED_INTERNAL_ERROR
         }.getOrElse {
-            Log.w(TAG, "Unable to register scan for $address", it)
+            Log.w(TAG, "Unable to register scan for $canonicalAddress", it)
             ScanCallback.SCAN_FAILED_INTERNAL_ERROR
         }
         val success = result == 0 || result == ScanCallback.SCAN_FAILED_ALREADY_STARTED
-        ReconnectionMetrics.markPendingScanRegistered(context, address, result, success)
+        ReconnectionMetrics.markPendingScanRegistered(context, canonicalAddress, result, success)
         return success
     }
 
     @SuppressLint("MissingPermission")
     fun stop(context: Context, address: String) {
-        runCatching { scanner(context)?.stopScan(pendingIntent(context, address)) }
-        ReconnectionMetrics.markPendingScanStopped(context, address)
+        val canonicalAddress = BluetoothAddress.normalize(address) ?: return
+        runCatching { scanner(context)?.stopScan(pendingIntent(context, canonicalAddress)) }
+        ReconnectionMetrics.markPendingScanStopped(context, canonicalAddress)
     }
 }
 
 class SonyPresenceScanReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val address = intent.getStringExtra(Constants.EXTRA_DEVICE_ADDRESS) ?: return
+        val address = BluetoothAddress.normalize(
+            intent.getStringExtra(Constants.EXTRA_DEVICE_ADDRESS),
+        ) ?: return
         val error = intent.getIntExtra(BluetoothLeScanner.EXTRA_ERROR_CODE, 0)
         if (error != 0) {
             ReconnectionMetrics.event(context, "pending_intent_scan_error", mapOf("address" to address, "error" to error))

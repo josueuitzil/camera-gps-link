@@ -9,7 +9,7 @@ class SonyCompanionDeviceService : CompanionDeviceService() {
             .myAssociations
             .firstOrNull { it.id == event.associationId }
             ?: return
-        val address = info.deviceMacAddress?.toString() ?: return
+        val address = BluetoothAddress.normalize(info.deviceMacAddress?.toString()) ?: return
 
         when (event.event) {
             DevicePresenceEvent.EVENT_BLE_APPEARED,
