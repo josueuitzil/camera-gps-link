@@ -12,10 +12,12 @@ android {
 
     defaultConfig {
         applicationId = "org.kutner.cameragpslink"
-        minSdk = 26
+        // API 36 is intentional: the app uses association-id based companion
+        // presence events instead of carrying deprecated presence fallbacks.
+        minSdk = 36
         targetSdk = 36
-        versionCode = 404
-        versionName = "4.04"
+        versionCode = 405
+        versionName = "4.05"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -107,12 +109,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.appcompat)
     implementation(libs.play.review)
     implementation(libs.play.review.ktx)
-
-    // Material Icons Extended
-    implementation(libs.androidx.compose.material.icons.extended)
 
     // Explicitly add Fragment dependency to fix ActivityResult API issue
     implementation(libs.androidx.fragment.ktx)

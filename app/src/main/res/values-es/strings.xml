@@ -56,8 +56,12 @@
     <string name="button_continue">Continuar</string>
     <string name="button_skip">Omitir</string>
 
+    <string name="notification_connecting_to">Conectando con %1$s</string>
+    <string name="notification_connecting_message">Preparando Bluetooth y ubicación…</string>
     <string name="battery_optimization_instruction_title">Optimización de batería</string>
     <string name="battery_optimization_instruction_message">Para permitir un funcionamiento fiable de la aplicación, por favor permita el uso de batería \"Sin restricciones\" en la siguiente pantalla.</string>
+    <string name="background_location_title">Permitir enlace GPS automático</string>
+    <string name="background_location_message">Para enviar GPS cuando la cámara active la app, abre Permisos → Ubicación y elige “%1$s”. La ubicación sólo se solicita mientras hay una cámara conectada.</string>
 
     <string name="dialog_found_camera_not_pairing">La cámara no está en modo de emparejamiento</string>
     <string name="dialog_found_camera_location_linking_disabled">El enlace de información de ubicación no está habilitado en la cámara</string>
@@ -79,6 +83,7 @@
 
     <string name="dialog_camera_settings_title">Configuración de Cámara</string>
     <string name="dialog_camera_settings_camera_name">Nombre de la cámara</string>
+    <string name="dialog_camera_settings_automatic_connection">Android gestiona la conexión automáticamente. No es necesario elegir un modo de escaneo.</string>
     <string name="dialog_camera_settings_connection_mode">Modo de Conexión</string>
     <string name="dialog_camera_settings_mode1">Modo 1</string>
     <string name="dialog_camera_settings_mode2">Modo 2</string>

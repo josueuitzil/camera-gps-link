@@ -7,25 +7,27 @@ object Constants {
     const val NOTIFICATION_CHANNEL_HIGH = "camera_gps_link_channel_high"
     const val NOTIFICATION_CHANNEL_LOW = "camera_gps_link_channel_low"
     const val NOTIFICATION_CHANNEL_CAMERA_ERROR = "camera_gps_link_error_channel"
-    const val NOTIFICATION_CHANNEL_BOOT = "camera_gps_link_boot_channel"
 
     // Notification IDs
     const val NOTIFICATION_ID_FOREGROUND_SERVICE = 1
     const val NOTIFICATION_ID_PERMISSIONS_REQUIRED = 2
-    const val NOTIFICATION_ID_BOOT = 3
     // Reserve some IDs to prevent conflicts with the static notifications
     const val NOTIFICATION_ID_CONNECTED_CAMERA_OFFSET = 10
     const val NOTIFICATION_ID_SHUTTER_ERROR_OFFSET = 11
 
     const val ACTION_TRIGGER_SHUTTER = "org.kutner.cameragpslink.ACTION_TRIGGER_SHUTTER"
+    const val ACTION_CONNECT_ASSOCIATED_CAMERA = "org.kutner.cameragpslink.ACTION_CONNECT_ASSOCIATED_CAMERA"
+    const val ACTION_CAMERA_ABSENT = "org.kutner.cameragpslink.ACTION_CAMERA_ABSENT"
 
     // Bluetooth Related Constants
     const val EXTRA_DEVICE_ADDRESS = "device_address"
     const val SONY_MANUFACTURER_ID = 0x012D
     val SONY_DEVICE_TYPE_CAMERA = byteArrayOf(0x03, 0x00)
-    const val MANUAL_SCAN_PERIOD: Long = 10000
     const val LOCATION_UPDATE_INTERVAL: Long = 10000
     const val REQUEST_MTU_SIZE = 517
+    const val GATT_CONNECT_TIMEOUT: Long = 25_000
+    const val GATT_OPERATION_TIMEOUT: Long = 8_000
+    const val MAX_GATT_CONNECT_RETRIES = 5
 
     const val MAX_BT_RETRIES = 5
     val TIME_SERVICE_UUID = UUID.fromString("8000CC00-CC00-FFFF-FFFF-FFFFFFFFFFFF")

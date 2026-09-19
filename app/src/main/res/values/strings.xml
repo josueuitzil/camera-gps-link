@@ -27,6 +27,8 @@
     <string name="notification_searching_title">Searching for cameras…</string>
     <string name="notification_searching_message">Do not remove this notification!</string>
     <string name="notification_search_long_message">Do not remove this notification!\nIt is required for the app to connect to the camera while in the background.</string>
+    <string name="notification_connecting_to">Connecting to %1$s</string>
+    <string name="notification_connecting_message">Preparing Bluetooth and location…</string>
 
     <string name="action_shutter">Shutter</string>
     <string name="action_remote">Remote</string>
@@ -57,6 +59,8 @@
 
     <string name="battery_optimization_instruction_title">Battery Optimization</string>
     <string name="battery_optimization_instruction_message">To enable reliable operation of the app, please allow \"Unrestricted\" battery usage in the next screen.</string>
+    <string name="background_location_title">Allow automatic GPS linking</string>
+    <string name="background_location_message">To send GPS after the camera wakes the app, open Permissions → Location and choose “%1$s”. Location is requested only while a camera is connected.</string>
 
     <string name="dialog_found_camera_not_pairing">The camera is not in pairing mode</string>
     <string name="dialog_found_camera_location_linking_disabled">Location Information Linking is not enabled in the camera</string>
@@ -78,6 +82,7 @@
 
     <string name="dialog_camera_settings_title">Camera Settings</string>
     <string name="dialog_camera_settings_camera_name">Camera Name</string>
+    <string name="dialog_camera_settings_automatic_connection">Connection is managed automatically by Android. No scan mode needs to be selected.</string>
     <string name="dialog_camera_settings_connection_mode">Connection Mode</string>
     <string name="dialog_camera_settings_mode1">Mode 1</string>
     <string name="dialog_camera_settings_mode2">Mode 2</string>

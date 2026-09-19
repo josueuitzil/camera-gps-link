@@ -1,5 +1,6 @@
 package org.kutner.cameragpslink.composables
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -32,6 +33,7 @@ import org.kutner.cameragpslink.*
 
 
 @OptIn(ExperimentalFoundationApi::class)
+@SuppressLint("MissingPermission")
 @Composable
 fun ConnectedCameraCard(
     modifier: Modifier = Modifier,
@@ -265,8 +267,8 @@ fun ConnectedCameraCard(
         CameraSettingsDialog(
             cameraAddress = address,
             onDismiss = { showCameraSettingsDialog = false },
-            onSave = { mode, enabled, duration, customName ->
-                AppSettingsManager.updateCameraSettings(context, address, mode = mode, quickConnectEnabled = enabled, durationMinutes = duration, customName = customName)
+            onSave = { customName ->
+                AppSettingsManager.updateCameraSettings(context, address, customName = customName)
                 service.onSettingsChanged(address)
                 settingsVersion++
                 showCameraSettingsDialog = false

@@ -56,8 +56,12 @@
     <string name="button_continue">המשך</string>
     <string name="button_skip">דלג</string>
 
+    <string name="notification_connecting_to">מתחבר אל %1$s</string>
+    <string name="notification_connecting_message">מכין Bluetooth ומיקום…</string>
     <string name="battery_optimization_instruction_title">אופטימיזציית סוללה</string>
     <string name="battery_optimization_instruction_message">כדי לאפשר פעולה אמינה של האפליקציה יש לאפשר מצב סוללה \"בלתי מוגבל\" במסך הבא</string>
+    <string name="background_location_title">אפשר קישור GPS אוטומטי</string>
+    <string name="background_location_message">כדי לשלוח GPS כשהמצלמה מעירה את האפליקציה, פתח הרשאות ← מיקום ובחר „%1$s“. המיקום מבוקש רק כאשר מצלמה מחוברת.</string>
 
 
     <string name="dialog_found_camera_not_pairing">המצלמה אינה במצב pairing</string>
@@ -80,6 +84,7 @@
 
     <string name="dialog_camera_settings_title">הגדרות מצלמה</string>
     <string name="dialog_camera_settings_camera_name">שם המצלמה</string>
+    <string name="dialog_camera_settings_automatic_connection">Android מנהל את החיבור אוטומטית. אין צורך לבחור מצב סריקה.</string>
     <string name="dialog_camera_settings_connection_mode">מצב חיבור</string>
     <string name="dialog_camera_settings_mode1">מצב 1</string>
     <string name="dialog_camera_settings_mode2">מצב 2</string>

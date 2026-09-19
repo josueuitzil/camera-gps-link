@@ -12,14 +12,13 @@ import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.*
@@ -52,56 +51,60 @@ class MainActivity : AppCompatActivity() {
     private var cameraSyncService: CameraSyncService? = null
     private val isBound: MutableState<Boolean> = mutableStateOf(false)
     private val deepLinkCameraAddress: MutableState<String?> = mutableStateOf(null)
+    private val companionCameraManager by lazy { CompanionCameraManager(this) }
+    private var associationRequestInFlight = false
+    private var bindingRequested = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as CameraSyncService.LocalBinder
             cameraSyncService = binder.getService()
+            bindingRequested = true
             isBound.value = true
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             isBound.value = false
+            bindingRequested = false
             cameraSyncService = null
         }
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-        if (permissions.values.all { it }) {
-            // After standard permissions, check battery optimization
-            if (!isBatteryOptimizationDisabled(this)) {
-                showBatteryOptimizationInstructionDialog()
-            } else {
-                proceedWithServiceSetup()
-            }
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        } else {
+            proceedWithServiceSetup()
         }
     }
 
-    private val batteryOptimizationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        // After returning from battery settings, proceed with setup
+    private val backgroundLocationLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) proceedWithServiceSetup() else showBackgroundLocationEducation()
+    }
+
+    private val backgroundSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         proceedWithServiceSetup()
+    }
+
+    private val associationApprovalLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) {
+        associationRequestInFlight = false
+        companionCameraManager.reconcileAndObserve()
+        cameraSyncService?.refreshSavedCameras()
     }
 
     private fun proceedWithServiceSetup() {
         bindToService()
-        // Only start service if we have saved cameras
-        val savedCameras = AppSettingsManager.getSavedCameras(this)
-        if (savedCameras.isNotEmpty()) {
-            startCameraService()
-        }
+        companionCameraManager.reconcileAndObserve()
     }
 
     override fun onStart() {
         super.onStart()
-        NotificationHelper(context = this).clearBootNotification()
-
         if (hasRequiredPermissions()) {
-            bindToService()
-            // Only start service if we have saved cameras
-            val savedCameras = AppSettingsManager.getSavedCameras(this)
-            if (savedCameras.isNotEmpty()) {
-                startCameraService()
-            }
+            proceedWithServiceSetup()
         } else {
             requestRequiredPermissions()
         }
@@ -109,8 +112,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (isBound.value) {
-            unbindService(connection)
+        if (bindingRequested) {
+            runCatching { unbindService(connection) }
+            bindingRequested = false
             isBound.value = false
         }
     }
@@ -141,7 +145,8 @@ class MainActivity : AppCompatActivity() {
                     MainScreen(
                         service = service,
                         deepLinkCameraAddress = deepLinkAddress,
-                        onDismissDeepLink = { deepLinkCameraAddress.value = null }
+                        onDismissDeepLink = { deepLinkCameraAddress.value = null },
+                        onAddCamera = ::requestCameraAssociation,
                     )
                 } else {
                     Box(
@@ -186,111 +191,98 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun createRemoteControlShortcut(cameraAddress: String, cameraName: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val shortcutManager = getSystemService(ShortcutManager::class.java)
+        val shortcutManager = getSystemService(ShortcutManager::class.java)
 
-            if (shortcutManager.isRequestPinShortcutSupported) {
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    data = Uri.parse("cameragpslink://remote?address=$cameraAddress")
-                    setClass(this@MainActivity, MainActivity::class.java)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
-
-                val shortcut = ShortcutInfo.Builder(this, "remote_$cameraAddress")
-                    .setShortLabel(getString(R.string.shortcut_remote_control_short, cameraName))
-                    .setLongLabel(getString(R.string.shortcut_remote_control_long, cameraName))
-                    .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
-                    .setIntent(intent)
-                    .build()
-
-                shortcutManager.requestPinShortcut(shortcut, null)
+        if (shortcutManager.isRequestPinShortcutSupported) {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse("cameragpslink://remote?address=$cameraAddress")
+                setClass(this@MainActivity, MainActivity::class.java)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
+
+            val shortcut = ShortcutInfo.Builder(this, "remote_$cameraAddress")
+                .setShortLabel(getString(R.string.shortcut_remote_control_short, cameraName))
+                .setLongLabel(getString(R.string.shortcut_remote_control_long, cameraName))
+                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setIntent(intent)
+                .build()
+
+            shortcutManager.requestPinShortcut(shortcut, null)
         }
     }
 
-    private fun startCameraService() {
-        val serviceIntent = Intent(this, CameraSyncService::class.java)
-        startForegroundService(serviceIntent)
+    private fun requestCameraAssociation() {
+        if (associationRequestInFlight) return
+        associationRequestInFlight = true
+        val legacyAddress = companionCameraManager.missingAssociations().firstOrNull()
+        companionCameraManager.requestAssociation(
+            address = legacyAddress,
+            onPending = { sender ->
+                associationApprovalLauncher.launch(IntentSenderRequest.Builder(sender).build())
+            },
+            onCreated = {
+                associationRequestInFlight = false
+                cameraSyncService?.refreshSavedCameras()
+            },
+            onFailure = { error ->
+                associationRequestInFlight = false
+                cameraSyncService?.log("Companion association failed: $error")
+            },
+        )
     }
 
     private fun hasRequiredPermissions(): Boolean {
         val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
 
         val hasStandardPermissions = permissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
 
-        return hasStandardPermissions && isBatteryOptimizationDisabled(this)
+        return hasStandardPermissions
     }
 
     private fun requestRequiredPermissions() {
         val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.POST_NOTIFICATIONS,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
         permissionLauncher.launch(permissions.toTypedArray())
     }
 
-    private fun showBatteryOptimizationInstructionDialog() {
+    private fun showBackgroundLocationEducation() {
+        val optionLabel = packageManager.backgroundPermissionOptionLabel
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.battery_optimization_instruction_title)
-            .setMessage(R.string.battery_optimization_instruction_message)
+            .setTitle(R.string.background_location_title)
+            .setMessage(getString(R.string.background_location_message, optionLabel))
             .setPositiveButton(R.string.button_continue) { dialog, _ ->
                 dialog.dismiss()
-                requestBatteryOptimizationExemption()
+                backgroundSettingsLauncher.launch(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                )
             }
             .setNegativeButton(R.string.button_skip) { dialog, _ ->
                 dialog.dismiss()
                 proceedWithServiceSetup()
             }
-            .setCancelable(false)
             .show()
     }
 
-    private fun requestBatteryOptimizationExemption() {
-        try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-            }
-            batteryOptimizationLauncher.launch(intent)
-            cameraSyncService?.log("Requesting battery optimization exemption")
-        } catch (e: Exception) {
-            cameraSyncService?.log("Direct battery exemption not available: ${e.message}")
-            // If direct intent fails, open general settings
-            openGeneralBatterySettings()
-        }
-    }
-
-    private fun openGeneralBatterySettings() {
-        try {
-            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-            batteryOptimizationLauncher.launch(intent)
-            cameraSyncService?.log("Opened general battery settings")
-        } catch (e: Exception) {
-            cameraSyncService?.log("Failed to open battery settings: ${e.message}")
-            proceedWithServiceSetup()
-        }
-    }
-
     private fun bindToService() {
-        Intent(this, CameraSyncService::class.java).also { intent ->
-            bindService(intent, connection, BIND_AUTO_CREATE)
-        }
+        if (bindingRequested) return
+        bindingRequested = bindService(
+            Intent(this, CameraSyncService::class.java),
+            connection,
+            BIND_AUTO_CREATE,
+        )
     }
 
     private fun showInAppReview() {
@@ -342,12 +334,6 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-// Helper function to check if battery optimization is ignored
-fun isBatteryOptimizationDisabled(context: Context): Boolean {
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
-}
-
 // MainScreen composable and helper functions
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("MissingPermission")
@@ -355,22 +341,20 @@ fun isBatteryOptimizationDisabled(context: Context): Boolean {
 fun MainScreen(
     service: CameraSyncService,
     deepLinkCameraAddress: String?,
-    onDismissDeepLink: () -> Unit
+    onDismissDeepLink: () -> Unit,
+    onAddCamera: () -> Unit,
 ) {
     val context = LocalContext.current
 
     // Observe state from service
     val logMessages by service.log.collectAsState()
     val cameras by service.connectedCameras.collectAsState()
-    val scanning by service.isManualScanning.collectAsState()
-    val devices by service.foundDevices.collectAsState()
     val errorMessage by service.shutterErrorMessage.collectAsState()
     val bondingErrorDeviceAddress by service.showBondingErrorDialog.collectAsState()
 
     // Local UI state
     var showLog by remember { mutableStateOf(AppSettingsManager.isShowLogEnabled(context)) }
     var showMenu by remember { mutableStateOf(false) }
-    var showSearchDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var isReorderMode by remember { mutableStateOf(false) }
 
@@ -484,8 +468,7 @@ fun MainScreen(
             if (!isReorderMode) {
                 FloatingActionButton(
                     onClick = {
-                        showSearchDialog = true
-                        service.startManualScan()
+                        onAddCamera()
                     },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
@@ -517,24 +500,6 @@ fun MainScreen(
                             isReorderMode = true
                         }
                     }
-                )
-            }
-
-            // Search dialog - handles its own events
-            if (showSearchDialog) {
-                SearchDialog(
-                    isScanning = scanning,
-                    foundDevices = devices,
-                    onDismiss = {
-                        service.stopManualScan()
-                        showSearchDialog = false
-                    },
-                    onConnect = { device ->
-                        service.connectToDevice(device.device, device)
-                        showSearchDialog = false
-                    },
-                    onCancelScan = { service.stopManualScan() },
-                    onRefresh = { service.startManualScan() }
                 )
             }
 

@@ -1,5 +1,6 @@
 package org.kutner.cameragpslink.composables
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -44,6 +45,7 @@ import org.kutner.cameragpslink.R
 import kotlin.math.abs
 
 @Composable
+@SuppressLint("MissingPermission")
 fun RemoteControlDialog(
     cameraAddress: String,
     service: CameraSyncService,

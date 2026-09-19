@@ -1,6 +1,7 @@
 package org.kutner.cameragpslink
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -55,75 +56,18 @@ class NotificationHelper(private val context: Context) {
         }
         notificationManager.createNotificationChannel(errorChannel)
 
-        val bootNotificationChannel = NotificationChannel(
-            Constants.NOTIFICATION_CHANNEL_BOOT,
-            context.getString(R.string.channel_name_boot), // Use string resource
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            setShowBadge(true)
-            enableLights(true)
-            enableVibration(true)
-        }
-        notificationManager.createNotificationChannel(bootNotificationChannel)
-
     }
 
-//    fun createForegroundNotification(connectedCount: Int): Notification {
-//        val channelId = if (connectedCount > 0) Constants.CHANNEL_CAMERA_SYNC_HIGH else Constants.CHANNEL_CAMERA_SYNC_LOW
-//        val priority = if (connectedCount > 0) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW
-//
-//        val title = when {
-//            connectedCount == 0 -> "Searching for cameras..."
-//            connectedCount == 1 -> "Connected to 1 camera"
-//            else -> "Connected to $connectedCount cameras"
-//        }
-//
-//        val pendingIntent: PendingIntent =
-//            Intent(context, MainActivity::class.java).let { notificationIntent ->
-//                PendingIntent.getActivity(context, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
-//            }
-//
-//        val builder = NotificationCompat.Builder(context, channelId)
-//            .setContentTitle(title)
-//            .setContentText()
-//            .setSmallIcon(R.drawable.ic_notification)
-//            .setContentIntent(pendingIntent)
-//            .setOngoing(true)
-//            .setPriority(priority)
-//            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-//
-//        // Add shutter button if at least one camera is connected
-//        if (connectedCount > 0) {
-//            val shutterIntent = Intent(context, CameraSyncService::class.java).apply {
-//                action = Constants.ACTION_TRIGGER_SHUTTER
-//            }
-//            val shutterPendingIntent = PendingIntent.getService(
-//                context,
-//                1,
-//                shutterIntent,
-//                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-//            )
-//            builder.addAction(
-//                R.drawable.appicon,
-//                "Shutter All",
-//                shutterPendingIntent
-//            )
-//        }
-//
-//        return builder.build()
-//    }
-
-    fun createSearchingNotification(): Notification {
+    fun createConnectingNotification(deviceAddress: String): Notification {
         val pendingIntent: PendingIntent =
             Intent(context, MainActivity::class.java).let { notificationIntent ->
                 PendingIntent.getActivity(context, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
             }
 
+        val cameraName = AppSettingsManager.getCameraName(context, deviceAddress, null)
         return NotificationCompat.Builder(context, Constants.NOTIFICATION_CHANNEL_LOW)
-            .setContentTitle(context.getString(R.string.notification_searching_title)) // Use string resource
-            .setContentText(context.getString(R.string.notification_searching_message)) // Use string resource
-            .setStyle(NotificationCompat.BigTextStyle()
-                .bigText(context.getString(R.string.notification_search_long_message))) // Use string resource
+            .setContentTitle(context.getString(R.string.notification_connecting_to, cameraName))
+            .setContentText(context.getString(R.string.notification_connecting_message))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -132,6 +76,14 @@ class NotificationHelper(private val context: Context) {
             .build()
     }
 
+    fun showForegroundConnected(connection: CameraConnection) {
+        notify(
+            Constants.NOTIFICATION_ID_FOREGROUND_SERVICE,
+            createCameraNotification(connection, connection.isRemoteControlEnabled),
+        )
+    }
+
+    @SuppressLint("MissingPermission")
     fun createCameraNotification(connection: CameraConnection, isRemoteControlEnabled: Boolean): Notification {
         val notificationId = connection.device.address.hashCode()
         val pendingIntent: PendingIntent =
@@ -235,40 +187,6 @@ class NotificationHelper(private val context: Context) {
     fun clearShutterErrorNotification(deviceAddress: String) {
         val notificationId = deviceAddress.hashCode() + Constants.NOTIFICATION_ID_SHUTTER_ERROR_OFFSET
         notificationManager.cancel(notificationId)
-    }
-
-    fun showBootNotification() {
-        // Intent to open MainActivity and start the service
-        val openAppIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("start_service_on_launch", true)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            openAppIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        // Use string resource for title and message, formatting the message with app_name
-        val appName = context.getString(R.string.app_name)
-        val bootMessage = context.getString(R.string.notification_boot_message, appName)
-
-        val notification = NotificationCompat.Builder(context, Constants.NOTIFICATION_CHANNEL_BOOT)
-            .setContentTitle(appName)
-            .setContentText(bootMessage)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-
-        notificationManager.notify(Constants.NOTIFICATION_ID_BOOT, notification)
-    }
-
-    fun clearBootNotification() {
-        notificationManager.cancel(Constants.NOTIFICATION_ID_BOOT)
     }
 
     fun notify(id: Int, notification: Notification) {
