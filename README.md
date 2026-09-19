@@ -195,8 +195,11 @@ The app requires the following permission:
 
 * **The camera is turning on even when I power it off**
   Camera GPS Link filters Sony's manufacturer-data power bit before connecting, including
-  when "Cnct. while Power Off" is enabled. If a firmware changes the advertisement layout,
-  disable that camera option and include the app's metrics/log when reporting the model.
+  when "Cnct. while Power Off" is enabled. A brief connection attempt can still occur
+  while the camera is powering down because the a6700 keeps its on-bit set during that
+  transition; the app then returns to its dormant scan. If a firmware changes the
+  advertisement layout, disable that camera option and include the app's metrics/log when
+  reporting the model.
 
 ### Acknowledgements
 This app is inspired by previous work done by:  

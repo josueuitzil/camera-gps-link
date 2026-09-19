@@ -15,7 +15,8 @@ import android.util.Log
 
 object SonyPresenceScanner {
     private const val TAG = "SonyPresenceScanner"
-    private const val FILTER_SCHEMA_VERSION = 2
+    private const val FILTER_SCHEMA_VERSION = 3
+    private val LEGACY_FILTER_SCHEMA_VERSIONS = listOf<Int?>(null, 1, 2)
 
     private fun pendingIntent(context: Context, address: String, schemaVersion: Int? = FILTER_SCHEMA_VERSION): PendingIntent {
         val intent = Intent(context, SonyPresenceScanReceiver::class.java).apply {
@@ -35,7 +36,15 @@ object SonyPresenceScanner {
         context.getSystemService(BluetoothManager::class.java).adapter.bluetoothLeScanner
 
     @SuppressLint("MissingPermission")
-    fun ensureRegistered(context: Context, address: String): Boolean {
+    fun ensureRegistered(context: Context, address: String): Boolean =
+        register(context, address, forceRestart = false)
+
+    @SuppressLint("MissingPermission")
+    fun restart(context: Context, address: String): Boolean =
+        register(context, address, forceRestart = true)
+
+    @SuppressLint("MissingPermission")
+    private fun register(context: Context, address: String, forceRestart: Boolean): Boolean {
         val canonicalAddress = BluetoothAddress.normalize(address)
         if (canonicalAddress == null) {
             Log.w(TAG, "Refusing to register scan for invalid Bluetooth address: $address")
@@ -55,7 +64,10 @@ object SonyPresenceScanner {
             )
             .build()
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+            // Samsung's LOW_POWER mode was measured at a 5% duty cycle and added
+            // 10-15 seconds before the first wake event. BALANCED keeps detection
+            // event-driven while substantially reducing that dormant latency.
+            .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_FIRST_MATCH or ScanSettings.CALLBACK_TYPE_MATCH_LOST)
             .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .setNumOfMatches(ScanSettings.MATCH_NUM_ONE_ADVERTISEMENT)
@@ -63,9 +75,13 @@ object SonyPresenceScanner {
         val result = runCatching {
             val bluetoothScanner = scanner(context) ?: return@runCatching ScanCallback.SCAN_FAILED_INTERNAL_ERROR
             val scanIntent = pendingIntent(context, canonicalAddress)
-            // A PendingIntent registration keeps its original filter. Retire the
-            // unversioned schema once, while leaving an existing current scan intact.
-            bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion = null))
+            // PendingIntent registrations retain their original settings across app
+            // updates. Retire every known old schema without disturbing a current
+            // registration, except when deliberately resetting FIRST_MATCH state.
+            LEGACY_FILTER_SCHEMA_VERSIONS.forEach { schemaVersion ->
+                bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion))
+            }
+            if (forceRestart) bluetoothScanner.stopScan(scanIntent)
             bluetoothScanner.startScan(listOf(filter), settings, scanIntent)
         }.getOrElse {
             Log.w(TAG, "Unable to register scan for $canonicalAddress", it)
@@ -81,7 +97,9 @@ object SonyPresenceScanner {
         val canonicalAddress = BluetoothAddress.normalize(address) ?: return
         runCatching {
             scanner(context)?.let { bluetoothScanner ->
-                bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion = null))
+                LEGACY_FILTER_SCHEMA_VERSIONS.forEach { schemaVersion ->
+                    bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress, schemaVersion))
+                }
                 bluetoothScanner.stopScan(pendingIntent(context, canonicalAddress))
             }
         }

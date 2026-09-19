@@ -8,15 +8,18 @@ architecture:
 1. `CompanionDeviceManager` owns user-approved Sony camera associations.
 2. A filtered `BluetoothLeScanner.startScan(..., PendingIntent)` registration is the
    normal dormant trigger. The filter matches the saved address, Sony manufacturer ID,
-   camera device type, tag `0x21`, and its powered-on bit.
+   camera device type, tag `0x21`, and its powered-on bit. It uses `SCAN_MODE_BALANCED`:
+   the Galaxy's measured 5% `LOW_POWER` duty cycle added 10–15 seconds of wake latency.
 3. API 36 companion presence is armed only if the power-aware PendingIntent scan cannot
    be registered. Observing all Sony presence unconditionally would keep
    `CompanionDeviceService` bound while **Connect while Power Off** advertises.
 4. The scan receiver starts `CameraSyncService` only for a powered-on match.
 5. The service becomes a `connectedDevice|location` foreground service, opens a direct
    LE GATT connection, starts high-accuracy location, and sends Sony DD11 updates.
-6. Disconnect, match-lost, or Bluetooth-off tears down GATT/location/FGS. The durable
-   system scan remains registered without retaining the app process.
+6. Disconnect resets the scan's `FIRST_MATCH` state before tearing down GATT/location/
+   FGS. This permits a fresh event after a quick off/on cycle instead of waiting for
+   Samsung's delayed `MATCH_LOST`. The durable system scan remains registered without
+   retaining the app process.
 
 This replaces both user-facing connection modes. A callback BLE scan and
 `connectGatt(autoConnect=true)` are no longer background-liveness mechanisms.
@@ -50,8 +53,9 @@ FGS_STARTING -> GATT_CONNECTING -> BONDING -> DISCOVERING
                          TEARDOWN -> DORMANT
 ```
 
-Retries are limited to five attempts (2, 4, 8, 16 and 32 seconds). Each connection has
-a 25-second timeout and each queued GATT operation has an 8-second timeout.
+Recovery is normally driven by a freshly rearmed scan event. If scan registration fails,
+direct retries are limited to five attempts (2, 4, 8, 16 and 32 seconds). Each connection
+has a 25-second timeout and each queued GATT operation has an 8-second timeout.
 
 ## Component responsibilities
 
@@ -104,8 +108,12 @@ a6700 running protocol version 101 was observed advertising tags `0x22`, `0x23`,
 `0x21`, placing the power tag at offset 12. The power-aware hardware filter therefore
 matches `0x21` at offset 12 and masks bit `0x0040`. The parser itself continues to walk all
 tags because their contents can vary, but Android manufacturer filters match fixed offsets.
-Unit tests cover the documented layout; a Sony a6700 must verify it with **Connect while
-Power Off** both enabled and disabled.
+Physical a6700 captures showed `0x21 0x60 0x00` while on. During the short power-down
+transition that bit can remain set until advertisements cease, so absence still arrives as
+a delayed `MATCH_LOST`; resetting `FIRST_MATCH` at GATT teardown closes the resulting
+quick-cycle race. Unit tests cover the documented layout. **Connect while Power Off**
+still needs physical validation with both enabled and disabled; the documented off beacon
+uses `0x21 0x20 0x00` and is rejected in hardware.
 
 If a firmware reorders tags, the strict PendingIntent filter will not fire. The safe
 fallback is to disable **Connect while Power Off** while adding a model-specific observed

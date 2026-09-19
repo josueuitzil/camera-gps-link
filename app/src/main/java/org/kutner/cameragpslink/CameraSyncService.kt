@@ -592,13 +592,23 @@ class CameraSyncService : Service() {
                         }
                     }
                 } else {
-                    log(
-                        "GATT write callback failed " +
-                            "type=${characteristicLabel(characteristic.uuid)} " +
-                            "status=$status " +
-                            "statusName=${gattStatusName(status)} " +
-                            "device=${getDeviceDisplayString(gatt.device)}"
-                    )
+                    val isExpectedRemoteControlRejection =
+                        characteristic.uuid == Constants.REMOTE_CONTROL_CHARACTERISTIC_UUID &&
+                            status == 144
+                    if (isExpectedRemoteControlRejection) {
+                        log(
+                            "Sony reports remote control unavailable (status=144) for " +
+                                "${getDeviceDisplayString(gatt.device)}; GPS streaming remains active."
+                        )
+                    } else {
+                        log(
+                            "GATT write callback failed " +
+                                "type=${characteristicLabel(characteristic.uuid)} " +
+                                "status=$status " +
+                                "statusName=${gattStatusName(status)} " +
+                                "device=${getDeviceDisplayString(gatt.device)}"
+                        )
+                    }
 
                     when (characteristic.uuid) {
                         Constants.ENABLE_LOCATION_UPDATES_UUID -> {
@@ -639,7 +649,9 @@ class CameraSyncService : Service() {
                                 val connection = cameraConnections[deviceAddress] ?: return
                                 connection.isRcProbeErrorReceived = true
                                 updateStatusMap(_isRemoteControlEnabled, deviceAddress, false )
-                                log("Remote control error received for ${getDeviceDisplayString(gatt.device)}")
+                                if (status != 144) {
+                                    log("Remote control error received for ${getDeviceDisplayString(gatt.device)}")
+                                }
                             }
                         }
                     }
@@ -750,9 +762,15 @@ class CameraSyncService : Service() {
         stopLocationUpdates(connection)
         stopBackgroundLocationFetching()
         notificationHelper.clearShutterErrorNotification(deviceAddress)
-        SonyPresenceScanner.ensureRegistered(this, deviceAddress)
+        // FIRST_MATCH scans stay in the matched state while GATT is connected. Reset
+        // that state after a disconnect so a still-on camera, or one switched off and
+        // back on quickly, can generate a fresh wake event immediately.
+        val presenceRearmed = SonyPresenceScanner.restart(this, deviceAddress)
 
-        if (connection.isPresent && connection.connectAttempts < Constants.MAX_GATT_CONNECT_RETRIES) {
+        if (
+            !presenceRearmed && connection.isPresent &&
+            connection.connectAttempts < Constants.MAX_GATT_CONNECT_RETRIES
+        ) {
             connection.connectAttempts++
             val delayMs = (1L shl connection.connectAttempts.coerceAtMost(5)) * 1_000L
             log("Retrying ${getDeviceDisplayString(deviceAddress)} in ${delayMs}ms")
