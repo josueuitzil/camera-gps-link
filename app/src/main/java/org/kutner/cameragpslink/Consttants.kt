@@ -15,9 +15,9 @@ object Constants {
     const val NOTIFICATION_ID_CONNECTED_CAMERA_OFFSET = 10
     const val NOTIFICATION_ID_SHUTTER_ERROR_OFFSET = 11
 
-    const val ACTION_TRIGGER_SHUTTER = "org.kutner.cameragpslink.ACTION_TRIGGER_SHUTTER"
-    const val ACTION_CONNECT_ASSOCIATED_CAMERA = "org.kutner.cameragpslink.ACTION_CONNECT_ASSOCIATED_CAMERA"
-    const val ACTION_CAMERA_ABSENT = "org.kutner.cameragpslink.ACTION_CAMERA_ABSENT"
+    const val ACTION_TRIGGER_SHUTTER = "io.github.josueuitzil.cameragpslink.ACTION_TRIGGER_SHUTTER"
+    const val ACTION_CONNECT_ASSOCIATED_CAMERA = "io.github.josueuitzil.cameragpslink.ACTION_CONNECT_ASSOCIATED_CAMERA"
+    const val ACTION_CAMERA_ABSENT = "io.github.josueuitzil.cameragpslink.ACTION_CAMERA_ABSENT"
 
     // Bluetooth Related Constants
     const val EXTRA_DEVICE_ADDRESS = "device_address"

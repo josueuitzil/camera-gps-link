@@ -28,7 +28,7 @@ disconnect time and FGS stop time.
 - Camera off 1 hour, then on; phone locked.
 - Camera off overnight, then on without opening Camera GPS Link.
 - App swiped from Recents before turning the camera on.
-- Dormant process killed with `adb shell am kill org.kutner.cameragpslink`.
+- Dormant process killed with `adb shell am kill io.github.josueuitzil.cameragpslink`.
 - Active process killed during a connection (verify intent redelivery).
 - Phone rebooted with camera off, then camera on without opening the app.
 - Bluetooth off/on with camera on, and Bluetooth off/on while camera is off.
@@ -55,14 +55,14 @@ adb shell dumpsys deviceidle unforce
 - Place the app in the Restricted standby bucket, test, then restore Active:
 
 ```sh
-adb shell am set-standby-bucket org.kutner.cameragpslink restricted
-adb shell am set-standby-bucket org.kutner.cameragpslink active
+adb shell am set-standby-bucket io.github.josueuitzil.cameragpslink restricted
+adb shell am set-standby-bucket io.github.josueuitzil.cameragpslink active
 ```
 
 - Test Battery Saver off/on and Adaptive Battery off/on.
 - Test Samsung lists separately: none, Sleeping apps, Deep sleeping apps, Never sleeping.
   Deep sleeping is an expected failure; Never sleeping should not be required normally.
-- Run `adb shell am force-stop org.kutner.cameragpslink` as a negative control. No
+- Run `adb shell am force-stop io.github.josueuitzil.cameragpslink` as a negative control. No
   automatic restart is expected until the user opens/interacts with the app.
 
 ## Measurements

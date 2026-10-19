@@ -2,7 +2,6 @@ package org.kutner.cameragpslink
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -30,7 +29,6 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +40,6 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
-import com.google.android.play.core.review.ReviewManagerFactory
 import org.kutner.cameragpslink.composables.*
 import org.kutner.cameragpslink.ui.theme.CameraGpsLinkTheme
 
@@ -159,11 +156,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        showInAppReview()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -286,53 +278,6 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun showInAppReview() {
-        val installTime = AppSettingsManager.getInstallTime(this)
-        val lastPromptTime = AppSettingsManager.getRatingPromptTime(this)
-        val currentTime = System.currentTimeMillis()
-        val millisPerDay = 1000 * 3600 * 24
-        val daysSinceInstall = (currentTime - installTime) / millisPerDay
-        val daysSinceLastPrompt = (currentTime - lastPromptTime) / millisPerDay
-
-        if (lastPromptTime < 0 || daysSinceLastPrompt < 30 || daysSinceInstall < 30) {
-            return
-        }
-
-        // Show the in-app review
-        val reviewManager = ReviewManagerFactory.create(this)
-        val request = reviewManager.requestReviewFlow()
-        request.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val reviewInfo = task.result
-                val flow = reviewManager.launchReviewFlow(this, reviewInfo)
-
-                flow.addOnCompleteListener {
-                    // Record that we showed the prompt
-                    AppSettingsManager.setRatingPromptTime(this, currentTime)
-                }
-            } else {
-                // Request failed, so we set a fictitious time to avoid showing the prompt again for 1 day
-                AppSettingsManager.setRatingPromptTime(this, currentTime - 29 * millisPerDay)
-            }
-        }
-    }
-
-    fun launchReviewFlow() {
-        // This is for the manual "Rate App" menu item
-        try {
-            // Try to open the Play Store app directly
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            // Disable future automatic prompts since user is actively choosing to rate
-            AppSettingsManager.setRatingPromptTime(this,-1)
-        } catch (e: ActivityNotFoundException) {
-            // Fallback to the browser if the Play Store app is not installed
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        }
-    }
 }
 
 // MainScreen composable and helper functions
@@ -454,11 +399,6 @@ fun MainScreen(
                             onShowHelp = {
                                 val helpIntent = Intent(Intent.ACTION_VIEW, context.getString(R.string.help_page_url).toUri())
                                 context.startActivity(helpIntent)
-                            },
-                            onRateApp = {
-                                if (context is MainActivity) {
-                                    context.launchReviewFlow()
-                                }
                             }
                         )
                     }
@@ -529,7 +469,6 @@ private fun TopBarMenu(
     onRearrange: () -> Unit,
     onShowLanguage: () -> Unit,
     onShowHelp: () -> Unit,
-    onRateApp: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -594,19 +533,6 @@ private fun TopBarMenu(
             leadingIcon = {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Help,
-                    contentDescription = null
-                )
-            }
-        )
-        DropdownMenuItem(
-            text = { Text(context.getString(R.string.menu_rate_app)) },
-            onClick = {
-                onShowMenuChange(false)
-                onRateApp()
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Star,
                     contentDescription = null
                 )
             }

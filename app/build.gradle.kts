@@ -11,13 +11,14 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "org.kutner.cameragpslink"
+        // Independent identity: Google Play cannot replace this fork with upstream's APK.
+        applicationId = "io.github.josueuitzil.cameragpslink"
         // API 36 is intentional: the app uses association-id based companion
         // presence events instead of carrying deprecated presence fallbacks.
         minSdk = 36
         targetSdk = 36
-        versionCode = 405
-        versionName = "4.05"
+        versionCode = 41001
+        versionName = "4.10-fork.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -111,8 +112,6 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.appcompat)
-    implementation(libs.play.review)
-    implementation(libs.play.review.ktx)
 
     // Explicitly add Fragment dependency to fix ActivityResult API issue
     implementation(libs.androidx.fragment.ktx)

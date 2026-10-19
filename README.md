@@ -1,6 +1,12 @@
 # Camera GPS Link
   
-[![Play Store Logo](assets/GetItOnGooglePlay_Badge_Web_color_English.png)](https://play.google.com/store/apps/details?id=org.kutner.cameragpslink)  
+This is the Android 16 fork maintained on `modern-android-main`, based on
+[Camera GPS Link by Eran Kutner](https://github.com/ekutner/camera-gps-link).
+Its independent application ID is `io.github.josueuitzil.cameragpslink` and it is
+installed from this fork's APK, not Google Play. Official Play Store updates cannot
+replace it. Minimum Android version: Android 16 / API 36.
+
+See [fork release notes and migration](docs/fork-release-notes.md).
   
 This Android app provides GPS and time synchronization, as well as full Bluetooth remote control 
 for most Sony cameras.
@@ -22,7 +28,7 @@ of Sony's RMT-P1BT and RMT-VP2 remotes.
 * **Full Bluetooth remote control** - Full support for all the feature of 
   Sony's Bluetooth remote controls such as the RMT-P1BT and RMT-VP2   
 * Support for connecting multiple cameras
-* Two connection modes for best connection speed with all phones and camera combinations
+* Automatic reconnection through Android Companion Device Presence and a Sony power-aware BLE fallback
 * Now supports camera that use either Sony's Creator's App or Imaging Edge Mobile
 
 ## Screenshots
@@ -33,8 +39,9 @@ of Sony's RMT-P1BT and RMT-VP2 remotes.
 
 ## Usage
 ### Pairing the camera with the app
-1. Start by unpairing the phone from the camera, both on the phone's Bluetooth menu and
-   in the camera menu. **DO NOT PAIR AGAIN FROM THE PHONE's BLUETOOTH MENU**
+1. For a new pairing or to fix a broken bond, remove the old pairing on both devices.
+   For migration to this fork's new app ID, reuse the existing Bluetooth bond and
+   approve a new Companion Device association; do not unpair a working camera.
 2. Disable Location Information Linkage in Creator's App and Imaging Mobile Edge 
    if they are installed on your phone
 3. On Cameras using the old menu system (cameras that use Imaging Edge Mobile app)
@@ -48,12 +55,12 @@ of Sony's RMT-P1BT and RMT-VP2 remotes.
    * Go to MENU → Network → Bluetooth Settings → Pairing
 5. In the app:
    * Press the "+" button to start searching for cameras
-   * when the camera is discovered press the "Connect" button to connect to it   
-6. Confirm the pairing request on both the camera and the phone
-7. Once paired the app will continuously look for the camera and
-   will automatically connect to it when it is near by
-8. After restarting the phone you have to open the app once for it to work properly.
-   The app will show a notification reminding you to open it, which will disappear once you do. 
+   * Approve the camera in Android's companion-device dialog.
+6. Confirm Bluetooth pairing on both devices if they are not already bonded.
+7. Android observes the associated camera and wakes the app when needed. GPS and
+   the foreground-service notification run only during a camera session.
+8. Observation is rearmed after phone restart and app replacement without opening
+   the app. Force stop, revoked permissions and Samsung Deep sleeping remain exceptions.
 
 ### Remote Control
 1. Enable remote control on the camera.
@@ -98,29 +105,10 @@ Select the "Settings" option from the option from the three dots menu (aka kebab
 * **Camera Name**
   Set a custom name for the camera instead of the name received from the Bluetooth device.
 
-* **Connection Mode**
-  The app implements two different connection modes supported by Android.
-  In general Mode 1 is the more advanced and recommended mode.
-  However, for some users Mode 2 seems to connect faster with their specific
-  phone and camera combinations. So it's best to just test it and if you don't see
-  a significant difference just use Mode 1 (be sure to test Mode 1 with Quick Connect enabled).
-  Notes:  
-  * Quick Connect is only supported in Mode 1.
-  * Do not use Mode 2 if you enabled the "Cnct. while Power Off" in the camera. 
-    See the FAQ below for more information.
-
-* **Quick Connect**
-  This feature is only supported when in Mode 1 and will be disabled in Mode 2.
-  When enabled the app will search for the camera more aggressively, which will reduce the
-  time between turning the camera on and the app connecting to it by 1-2 seconds. This mode
-  requires a little more power for scanning, which will drain the battery a bit faster.
-
-* **Quick Connect Duration**
-  In order to balance the connection speed and battery usage this feature allows setting 
-  a timeout period for the Quick Connect mode. If the camera wasn't found again within the 
-  specified time period after being disconnected from the phone, the app will revert to the normal 
-  scan speed in order to save battery. Setting this to "Always" means the fast scan speed will always
-  be used.
+* **Automatic connection**
+  Android manages presence and the app confirms Sony's powered-on advertisement
+  before connecting. There are no Scan/AutoConnect or Quick Connect settings.
+  Some screenshots above show the original application's older UI.
   
 
 ### Unpairing

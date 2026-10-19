@@ -19,3 +19,6 @@ local.properties
 
 # app bundles
 *.aab
+
+# Device migration backups contain private settings and are never committed.
+/local-backups/

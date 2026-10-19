@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("org.kutner.cameragpslink", appContext.packageName)
+        assertEquals("io.github.josueuitzil.cameragpslink", appContext.packageName)
     }
 }
