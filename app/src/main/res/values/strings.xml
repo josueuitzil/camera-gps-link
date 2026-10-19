@@ -29,6 +29,7 @@
     <string name="notification_search_long_message">Do not remove this notification!\nIt is required for the app to connect to the camera while in the background.</string>
     <string name="notification_connecting_to">Connecting to %1$s</string>
     <string name="notification_connecting_message">Preparing Bluetooth and location…</string>
+    <string name="notification_session_blocked">Automatic connection was blocked. Open the app to check location and Bluetooth access.</string>
 
     <string name="action_shutter">Shutter</string>
     <string name="action_remote">Remote</string>

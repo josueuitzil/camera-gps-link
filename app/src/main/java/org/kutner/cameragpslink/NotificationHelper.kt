@@ -189,6 +189,23 @@ class NotificationHelper(private val context: Context) {
         notificationManager.cancel(notificationId)
     }
 
+    fun showSessionBlockedNotification() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED) return
+        val openApp = PendingIntent.getActivity(context, 0,
+            Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(context, Constants.NOTIFICATION_CHANNEL_CAMERA_ERROR)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.app_name))
+            .setContentText(context.getString(R.string.notification_session_blocked))
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .build()
+        // Permission can be revoked between the check and posting the notification.
+        runCatching { notificationManager.notify(Constants.NOTIFICATION_ID_PERMISSIONS_REQUIRED, notification) }
+    }
+
     fun notify(id: Int, notification: Notification) {
         notificationManager.notify(id, notification)
     }

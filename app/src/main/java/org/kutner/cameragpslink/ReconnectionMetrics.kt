@@ -20,9 +20,7 @@ object ReconnectionMetrics {
             fields.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) }
         }
         Log.i(TAG, record.toString())
-        runCatching {
-            File(context.filesDir, EVENTS_FILE).appendText(record.toString() + "\n")
-        }.onFailure { Log.w(TAG, "Unable to persist metrics event", it) }
+        DiagnosticsLog.appendEvent(context, record.toString())
     }
 
     fun increment(context: Context, key: String, amount: Long = 1) {

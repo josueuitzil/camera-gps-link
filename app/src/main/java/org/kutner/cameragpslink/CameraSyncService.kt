@@ -76,13 +76,15 @@ class CameraSyncService : Service() {
         private const val TAG = "CameraSyncService"
         @Volatile private var currentInstance: CameraSyncService? = null
 
-        fun startForCamera(context: Context, address: String) {
-            val canonicalAddress = BluetoothAddress.normalize(address) ?: return
+        fun startForCamera(context: Context, address: String): Boolean {
+            val canonicalAddress = BluetoothAddress.normalize(address) ?: return false
             val intent = Intent(context, CameraSyncService::class.java).apply {
                 action = Constants.ACTION_CONNECT_ASSOCIATED_CAMERA
                 putExtra(Constants.EXTRA_DEVICE_ADDRESS, canonicalAddress)
             }
-            ContextCompat.startForegroundService(context, intent)
+            return SessionStartGuard.run(context, canonicalAddress, "startForegroundService") {
+                ContextCompat.startForegroundService(context, intent)
+            }
         }
 
         fun notifyCameraAbsent(address: String) {
@@ -222,11 +224,13 @@ class CameraSyncService : Service() {
 
         initializeBluetoothAndLocation()
         loadSavedCameras()
+        DiagnosticsLog.append(this, "CameraSyncService created")
         log("Service created.")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         log("Service received start command: ${intent?.action}.")
+        DiagnosticsLog.append(this, "Session start command action=${intent?.action} flags=$flags startId=$startId")
 
         // Handle shutter action from notification
         if (intent?.action == Constants.ACTION_TRIGGER_SHUTTER) {
@@ -250,10 +254,14 @@ class CameraSyncService : Service() {
             if (!hasRequiredPermissions()) {
                 log("Cannot connect $address: Bluetooth/background location permissions are missing.")
                 ReconnectionMetrics.event(this, "session_permission_failure", mapOf("address" to address))
+                SessionStartGuard.permissionsMissing(this, address)
                 stopSelfResult(startId)
                 return START_NOT_STICKY
             }
-            startSessionForeground(address)
+            if (!startSessionForeground(address)) {
+                stopSelfResult(startId)
+                return START_NOT_STICKY
+            }
             connectAssociatedCamera(address)
             return START_REDELIVER_INTENT
         }
@@ -293,20 +301,38 @@ class CameraSyncService : Service() {
         cameraConnections.clear()
         stopService()
         log("Service destroyed.")
+        DiagnosticsLog.append(this, "CameraSyncService destroyed")
     }
 
-    private fun startSessionForeground(deviceAddress: String) {
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        DiagnosticsLog.append(this, "Task removed from Recents")
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        DiagnosticsLog.append(this, "Memory pressure level=$level")
+    }
+
+    private fun startSessionForeground(deviceAddress: String): Boolean {
         if (!isForegroundServiceStarted) {
             log("Starting on-demand foreground session for ${getDeviceDisplayString(deviceAddress)}...")
-            ServiceCompat.startForeground(
-                this,
-                Constants.NOTIFICATION_ID_FOREGROUND_SERVICE,
-                notificationHelper.createConnectingNotification(deviceAddress),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
-            )
+            val started = SessionStartGuard.run(this, deviceAddress, "startForeground") {
+                ServiceCompat.startForeground(
+                    this,
+                    Constants.NOTIFICATION_ID_FOREGROUND_SERVICE,
+                    notificationHelper.createConnectingNotification(deviceAddress),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                )
+            }
+            if (!started) return false
             isForegroundServiceStarted = true
+            SessionStartGuard.clearRejection(this, deviceAddress)
+            notificationHelper.cancel(Constants.NOTIFICATION_ID_PERMISSIONS_REQUIRED)
             ReconnectionMetrics.markForegroundStarted(this, deviceAddress)
+            DiagnosticsLog.append(this, "On-demand foreground session started")
         }
+        return true
     }
 
     private fun stopService() {
@@ -316,6 +342,7 @@ class CameraSyncService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
             isForegroundServiceStarted = false
             ReconnectionMetrics.markForegroundStopped(this)
+            DiagnosticsLog.append(this, "On-demand foreground session stopped")
         }
         stopSelf()
     }
@@ -377,7 +404,10 @@ class CameraSyncService : Service() {
         if (!hasRequiredPermissions() || !isAdapterAndScannerReady()) return
 
         val address = device.address
-        startSessionForeground(address)
+        if (!startSessionForeground(address)) {
+            finishForegroundIfIdle()
+            return
+        }
 
         // Don't connect if already connected or connecting
         cameraConnections[address]?.let { connection ->
@@ -1336,6 +1366,9 @@ class CameraSyncService : Service() {
             )
         }
         _connectedCameras.value = newList
+        DiagnosticsLog.setProcessState(this,
+            "fgs=$isForegroundServiceStarted connected=${newList.count { it.isConnected }} " +
+                "connecting=${newList.count { it.isConnecting }}")
         log("Updated connections list: ${cameraConnections.size} cameras, connected: ${newList.count { it.isConnected }}, details: ${newList.map { "${it.device.address}: connected=${it.isConnected}, connecting=${it.isConnecting}" }}")
     }
 
@@ -1408,6 +1441,7 @@ class CameraSyncService : Service() {
     }
 
     fun getLogAsString(): String {
-        return _log.value.joinToString("\n") + "\n\n" + ReconnectionMetrics.summary(this)
+        return _log.value.joinToString("\n") + "\n\n" + ReconnectionMetrics.summary(this) +
+            "\n\n--- Persistent diagnostics ---\n" + DiagnosticsLog.read(this)
     }
 }

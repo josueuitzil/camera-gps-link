@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity() {
     private fun proceedWithServiceSetup() {
         bindToService()
         companionCameraManager.reconcileAndObserve()
+        SessionStartGuard.rearmRejectedSessions(this)
     }
 
     override fun onStart() {

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Camera GPS Link</string>
+    <string name="notification_session_blocked">La connexion automatique a été bloquée. Ouvrez l’application pour vérifier les accès à la localisation et au Bluetooth.</string>
 
     <string name="channel_name_connected">Caméras connectées</string>
     <string name="channel_name_searching">Statut de l\'application (requis)</string>
